@@ -8,7 +8,7 @@ public interface IFluxActionChainer
         where TAction : class, IFluxAction;
 }
 
-internal sealed class FluxActionChainer : IFluxActionChainer
+public sealed class FluxActionChainer : IFluxActionChainer
 {
     private readonly IFluxDispatcher _dispatcher;
 
