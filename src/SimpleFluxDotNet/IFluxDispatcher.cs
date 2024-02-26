@@ -7,27 +7,47 @@ public interface IFluxDispatcher
 {
     void Subscribe(Type actionType, AsyncFluxActionCallback callback);
 
-    Task PublishAsync<TAction>(TAction action, CancellationToken ct = default) where TAction : class, IFluxAction;
+    Task DispatchAsync<TAction>(TAction action, CancellationToken ct = default) where TAction : class, IFluxAction;
+}
+
+internal interface IInternalFluxDispatcher : IFluxDispatcher
+{
+    Task DispatchAsync(Type actionType, IFluxAction action, CancellationToken ct = default);
 }
 
 public static class FluxDispatcherExtensions
 {
-    public static Task PublishAsync<TAction>(this IFluxDispatcher dispatcher, CancellationToken ct = default) where TAction : class, IFluxAction, new() =>
-        dispatcher.PublishAsync<TAction>(new(), ct);
+    public static Task DispatchAsync<TAction>(this IFluxDispatcher dispatcher, CancellationToken ct = default) where TAction : class, IFluxAction, new() =>
+        dispatcher.DispatchAsync<TAction>(new(), ct);
+
+    public static async Task DispatchAsync(this IFluxDispatcher dispatcher, List<IFluxAction> actions, CancellationToken ct = default)
+    {
+        if (dispatcher is not IInternalFluxDispatcher internalDispatcher)
+        {
+            throw new InvalidOperationException($@"This operation is only available when using the stock dispatcher");
+        }
+        foreach (var action in actions)
+        {
+            await internalDispatcher.DispatchAsync(action.GetType(), action, ct);
+        }
+    }
+
 }
 
-internal sealed class FluxDispatcher : IFluxDispatcher
+internal sealed class FluxDispatcher : IInternalFluxDispatcher
 {
 
     private readonly List<KeyValuePair<Type, object>> _callbacks = [];
 
     public void Subscribe(Type actionType, AsyncFluxActionCallback callback) => _callbacks.Add(new(actionType, callback));
 
-    public async Task PublishAsync<TAction>(TAction action, CancellationToken ct = default) where TAction : class, IFluxAction
+    public Task DispatchAsync<TAction>(TAction action, CancellationToken ct = default) where TAction : class, IFluxAction =>
+        DispatchAsync(typeof(TAction), action, ct);
+
+    public async Task DispatchAsync(Type actionType, IFluxAction action, CancellationToken ct = default)
     {
-        var eventType = typeof(TAction);
         var callbacks = _callbacks.ToLookup(_ => _.Key);
-        foreach (var callback in callbacks[eventType].Select(_ => _.Value))
+        foreach (var callback in callbacks[actionType].Select(_ => _.Value))
         {
             if (callback is AsyncFluxActionCallback asyncCallback)
             {
@@ -35,5 +55,4 @@ internal sealed class FluxDispatcher : IFluxDispatcher
             }
         }
     }
-
 }

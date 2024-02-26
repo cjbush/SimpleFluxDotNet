@@ -16,7 +16,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddFluxStateManagement(flux =>
 {
     flux.ForState<ExampleState>()
-            .ForAction<IncrementCounterButtonClickedEvent>().UseReducer<IncrementCounterReducer>();
+            .ForAction<IncrementCounterButtonClickedAction>().UseReducer<IncrementCounterReducer>();
 });
 
 

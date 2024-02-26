@@ -3,7 +3,7 @@
 @using SimpleFluxDotNet.Example.States
 
 @inject IFluxStateStore<ExampleState> _state
-@inject IFluxActionCreator<IncrementCounterButtonClickedEvent> _action
+@inject IFluxDispatcher _dispatcher
 
 <PageTitle>Counter</PageTitle>
 
@@ -20,5 +20,5 @@
         return base.OnInitializedAsync();
     }
 
-    private Task IncrementCount() => _action.DispatchAsync();
+    private Task IncrementCount() => _dispatcher.DispatchAsync(new IncrementCounterButtonClickedAction());
 }
