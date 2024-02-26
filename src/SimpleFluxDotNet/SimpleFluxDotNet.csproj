@@ -6,7 +6,7 @@
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
 		<PackageId>SimpleFlux.NET</PackageId>
-		<Version>2.2.0</Version>
+		<Version>2.3.0</Version>
 		<Authors>cjbush</Authors>
 		<PackageTags>flux;blazor</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

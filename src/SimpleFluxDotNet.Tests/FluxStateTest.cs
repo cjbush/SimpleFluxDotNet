@@ -128,7 +128,8 @@ internal static class FluxStateTest
         var nameAction = sp.GetRequiredService<IFluxActionCreator<NameChangedAction>>();
         var nameState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
 
-        await dispatcher.DispatchAsync(await nameAction.CreateAsync(), CancellationToken.None);
+        var nameChainer = sp.GetRequiredService<IFluxActionChainer>();
+        await nameChainer.Dispatch(nameAction).ExecuteAsync();
 
         nameState.Current.Name.Should().Be("Joe");
     }

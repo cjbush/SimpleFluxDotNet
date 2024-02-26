@@ -4,9 +4,8 @@ public interface IFluxActionChainer
 {
     FluxActionChainBuilder Dispatch<TAction>(TAction action) where TAction : class, IFluxAction;
     FluxActionChainBuilder Dispatch<TAction>() where TAction : class, IFluxAction, new();
-    FluxActionChainBuilder Dispatch<TAction, TActionCreator>(TActionCreator creator)
-        where TAction : class, IFluxAction
-        where TActionCreator : class, IFluxActionCreator<TAction>;
+    FluxActionChainBuilder Dispatch<TAction>(IFluxActionCreator<TAction> creator)
+        where TAction : class, IFluxAction;
 }
 
 internal sealed class FluxActionChainer : IFluxActionChainer
@@ -28,7 +27,7 @@ internal sealed class FluxActionChainer : IFluxActionChainer
     public FluxActionChainBuilder Dispatch<TAction>() where TAction : class, IFluxAction, new() =>
         Dispatch(new TAction());
 
-    public FluxActionChainBuilder Dispatch<TAction, TActionCreator>(TActionCreator creator) where TActionCreator : class, IFluxActionCreator<TAction> where TAction : class, IFluxAction
+    public FluxActionChainBuilder Dispatch<TAction>(IFluxActionCreator<TAction> creator) where TAction : class, IFluxAction
     {
         _actionCreators.Add(async (ct) => await creator.CreateAsync(ct));
         return new FluxActionChainBuilder(_dispatcher, _actionCreators);
@@ -57,7 +56,7 @@ public sealed class FluxActionChainBuilder
     public FluxActionChainBuilder Then<TAction>() where TAction : class, IFluxAction, new() =>
         Then(new TAction());
 
-    public FluxActionChainBuilder Then<TAction, TActionCreator>(TActionCreator creator) where TActionCreator : class, IFluxActionCreator<TAction> where TAction : class, IFluxAction
+    public FluxActionChainBuilder Then<TAction>(IFluxActionCreator<TAction> creator) where TAction : class, IFluxAction
     {
         _actionCreators.Add(async (ct) => await creator.CreateAsync(ct));
         return this;
