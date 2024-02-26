@@ -1,9 +1,9 @@
 ﻿namespace SimpleFluxDotNet;
 
 
-internal delegate Task AsyncFluxEventCallback(IFluxEvent @event, CancellationToken ct);
+public delegate Task AsyncFluxEventCallback(IFluxEvent @event, CancellationToken ct);
 
-internal interface IFluxDispatcher
+public interface IFluxDispatcher
 {
     void Subscribe(Type eventType, AsyncFluxEventCallback callback);
 

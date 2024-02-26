@@ -25,18 +25,19 @@ internal static class FluxStateTest
 
     private sealed class IncrementCounterReducer : AbstractFluxReducer<TestState, IncrementCounterEvent>
     {
-        public override Task ReduceAsync(IncrementCounterEvent @event, TestState currentState, CancellationToken ct = default) =>
-            StateHasChanged(currentState with { Counter = currentState.Counter + 1 }, ct);
+        public override TestState Reduce(IncrementCounterEvent @event, TestState currentState) =>
+            currentState with { Counter = currentState.Counter + 1 };
     }
 
     private sealed class ResetCounterReducer : AbstractFluxReducer<TestState, IncrementCounterEvent>
     {
-        public override async Task ReduceAsync(IncrementCounterEvent @event, TestState currentState, CancellationToken ct = default)
+        public override TestState Reduce(IncrementCounterEvent @event, TestState currentState)
         {
             if (currentState.Counter > 1)
             {
-                await StateHasChanged(currentState with { CounterOverflowed = true }, ct);
+                return currentState with { CounterOverflowed = true };
             }
+            return currentState;
         }
     }
 
@@ -45,10 +46,21 @@ internal static class FluxStateTest
         public required string NewName { get; init; }
     }
 
+    private sealed class NameChangedAction : AbstractFluxAction<NameChangedEvent>
+    {
+        public NameChangedAction(IFluxDispatcher dispatcher) : base(dispatcher) { }
+
+        protected override async Task<NameChangedEvent> CreateEvent()
+        {
+            await Task.Delay(500); // simulate API call or something
+            return new() { NewName = "Joe" };
+        }
+    }
+
     private sealed class NameChangedReducer : AbstractFluxReducer<AnotherTestState, NameChangedEvent>
     {
-        public override Task ReduceAsync(NameChangedEvent @event, AnotherTestState currentState, CancellationToken ct = default) =>
-            StateHasChanged(currentState with { Name = @event.NewName }, ct);
+        public override AnotherTestState Reduce(NameChangedEvent @event, AnotherTestState currentState) =>
+            currentState with { Name = @event.NewName };
     }
 
 
@@ -59,7 +71,7 @@ internal static class FluxStateTest
         using var sp = new ServiceCollection().AddFluxStateManagement(flux =>
         {
             flux.ForState(new AnotherTestState { Name = "Test" })
-                    .HandleEvent<NameChangedEvent>()
+                    .HandleEvent<NameChangedEvent, NameChangedAction>()
                         .With<NameChangedReducer>()
                 .ForState<TestState>()
                     .HandleEvent<IncrementCounterEvent>()
@@ -90,7 +102,7 @@ internal static class FluxStateTest
         var nameAction = sp.GetRequiredService<IFluxAction<NameChangedEvent>>();
         var nameState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
 
-        await nameAction.DispatchAsync(new() { NewName = "Joe" });
+        await nameAction.DispatchAsync();
 
         nameState.Current.Name.Should().Be("Joe");
     }

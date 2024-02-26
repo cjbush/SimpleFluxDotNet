@@ -45,9 +45,15 @@ public sealed class FluxEventBuilder<TState> where TState : AbstractFluxState
         _parent = parent;
     }
 
-    public FluxReducerBuilder<TState, TEvent> HandleEvent<TEvent>() where TEvent : class, IFluxEvent
+    public FluxReducerBuilder<TState, TEvent> HandleEvent<TEvent>() where TEvent : class, IFluxEvent, new()
     {
         _services.AddSingleton<IFluxAction<TEvent>, GenericFluxAction<TEvent>>();
+        return new FluxReducerBuilder<TState, TEvent>(_services, this);
+    }
+
+    public FluxReducerBuilder<TState, TEvent> HandleEvent<TEvent, TAction>() where TEvent : class, IFluxEvent where TAction : class, IFluxAction<TEvent>
+    {
+        _services.AddSingleton<IFluxAction<TEvent>, TAction>();
         return new FluxReducerBuilder<TState, TEvent>(_services, this);
     }
 
@@ -71,9 +77,14 @@ public sealed class FluxReducerBuilder<TState, TEvent> where TState : AbstractFl
         return this;
     }
 
-    public FluxReducerBuilder<TState, TNewEvent> HandleEvent<TNewEvent>() where TNewEvent : class, IFluxEvent
+    public FluxReducerBuilder<TState, TNewEvent> HandleEvent<TNewEvent>() where TNewEvent : class, IFluxEvent, new()
     {
         return _parent.HandleEvent<TNewEvent>();
+    }
+
+    public FluxReducerBuilder<TState, TNewEvent> HandleEvent<TNewEvent, TAction>() where TAction : class, IFluxAction<TNewEvent> where TNewEvent : class, IFluxEvent, new()
+    {
+        return _parent.HandleEvent<TNewEvent, TAction>();
     }
 
     public FluxEventBuilder<TNewState> ForState<TNewState>() where TNewState : AbstractFluxState, new() =>

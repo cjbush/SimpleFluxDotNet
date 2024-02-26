@@ -2,26 +2,31 @@
 
 public interface IFluxAction<in TEvent> where TEvent : class, IFluxEvent
 {
-    Task DispatchAsync(TEvent @event, CancellationToken ct = default);
+    Task DispatchAsync(CancellationToken ct = default);
 }
 
-public static class FluxActionExtensions
+public abstract class AbstractFluxAction<TEvent> : IFluxAction<TEvent> where TEvent : class, IFluxEvent
 {
-    public static Task DispatchAsync<TEvent>(this IFluxAction<TEvent> action, CancellationToken ct = default) where TEvent : class, IFluxEvent, new() =>
-        action.DispatchAsync(new TEvent(), ct);
-}
+    protected readonly IFluxDispatcher _dispatcher;
 
-internal sealed class GenericFluxAction<TEvent> : IFluxAction<TEvent> where TEvent : class, IFluxEvent
-{
-    private readonly IFluxDispatcher _dispatcher;
-
-    public GenericFluxAction(IFluxDispatcher dispatcher)
+    protected AbstractFluxAction(IFluxDispatcher dispatcher)
     {
         _dispatcher = dispatcher;
     }
 
-    public async Task DispatchAsync(TEvent @event, CancellationToken ct = default)
+    public async Task DispatchAsync(CancellationToken ct = default)
     {
-        await _dispatcher.PublishAsync(@event, ct);
+        await _dispatcher.PublishAsync(await CreateEvent(), ct);
     }
+
+    protected abstract Task<TEvent> CreateEvent();
+
+}
+
+internal sealed class GenericFluxAction<TEvent> : AbstractFluxAction<TEvent> where TEvent : class, IFluxEvent, new()
+{
+
+    public GenericFluxAction(IFluxDispatcher dispatcher) : base(dispatcher) { }
+
+    protected override Task<TEvent> CreateEvent() => Task.FromResult(new TEvent());
 }

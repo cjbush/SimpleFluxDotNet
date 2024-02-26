@@ -5,6 +5,6 @@ namespace SimpleFluxDotNet.Example.Reducers;
 
 public sealed class IncrementCounterReducer : AbstractFluxReducer<ExampleState, IncrementCounterButtonClickedEvent>
 {
-    public override Task ReduceAsync(IncrementCounterButtonClickedEvent @event, ExampleState currentState, CancellationToken ct = default) =>
-        StateHasChanged(currentState with { Counter = currentState.Counter + 1 }, ct);
+    public override ExampleState Reduce(IncrementCounterButtonClickedEvent @event, ExampleState currentState) =>
+        currentState with { Counter = currentState.Counter + 1 };
 }
