@@ -1,13 +1,19 @@
 ﻿namespace SimpleFluxDotNet;
 
 
-public delegate Task AsyncFluxEventCallback(IFluxEvent @event, CancellationToken ct);
+public delegate Task AsyncFluxActionCallback(IFluxAction action, CancellationToken ct);
 
 public interface IFluxDispatcher
 {
-    void Subscribe(Type eventType, AsyncFluxEventCallback callback);
+    void Subscribe(Type actionType, AsyncFluxActionCallback callback);
 
-    Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default) where TEvent : class, IFluxEvent;
+    Task PublishAsync<TAction>(TAction action, CancellationToken ct = default) where TAction : class, IFluxAction;
+}
+
+public static class FluxDispatcherExtensions
+{
+    public static Task PublishAsync<TAction>(this IFluxDispatcher dispatcher, CancellationToken ct = default) where TAction : class, IFluxAction, new() =>
+        dispatcher.PublishAsync<TAction>(new(), ct);
 }
 
 internal sealed class FluxDispatcher : IFluxDispatcher
@@ -15,17 +21,17 @@ internal sealed class FluxDispatcher : IFluxDispatcher
 
     private readonly List<KeyValuePair<Type, object>> _callbacks = [];
 
-    public void Subscribe(Type eventType, AsyncFluxEventCallback callback) => _callbacks.Add(new(eventType, callback));
+    public void Subscribe(Type actionType, AsyncFluxActionCallback callback) => _callbacks.Add(new(actionType, callback));
 
-    public async Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default) where TEvent : class, IFluxEvent
+    public async Task PublishAsync<TAction>(TAction action, CancellationToken ct = default) where TAction : class, IFluxAction
     {
-        var eventType = typeof(TEvent);
+        var eventType = typeof(TAction);
         var callbacks = _callbacks.ToLookup(_ => _.Key);
         foreach (var callback in callbacks[eventType].Select(_ => _.Value))
         {
-            if (callback is AsyncFluxEventCallback asyncCallback)
+            if (callback is AsyncFluxActionCallback asyncCallback)
             {
-                await Task.Run(() => asyncCallback(@event, ct), ct);
+                await Task.Run(() => asyncCallback(action, ct), ct);
             }
         }
     }

@@ -19,19 +19,19 @@ internal static class FluxStateTest
         public required string Name { get; init; }
     }
 
-    private sealed record IncrementCounterEvent : IFluxEvent
+    private sealed record IncrementCounterAction : IFluxAction
     {
     }
 
-    private sealed class IncrementCounterReducer : AbstractFluxReducer<TestState, IncrementCounterEvent>
+    private sealed class IncrementCounterReducer : AbstractFluxReducer<TestState, IncrementCounterAction>
     {
-        public override TestState Reduce(IncrementCounterEvent @event, TestState currentState) =>
+        public override TestState Reduce(IncrementCounterAction @event, TestState currentState) =>
             currentState with { Counter = currentState.Counter + 1 };
     }
 
-    private sealed class ResetCounterReducer : AbstractFluxReducer<TestState, IncrementCounterEvent>
+    private sealed class ResetCounterReducer : AbstractFluxReducer<TestState, IncrementCounterAction>
     {
-        public override TestState Reduce(IncrementCounterEvent @event, TestState currentState)
+        public override TestState Reduce(IncrementCounterAction @event, TestState currentState)
         {
             if (currentState.Counter > 1)
             {
@@ -41,25 +41,23 @@ internal static class FluxStateTest
         }
     }
 
-    private sealed record NameChangedEvent : IFluxEvent
+    private sealed record NameChangedAction : IFluxAction
     {
         public required string NewName { get; init; }
     }
 
-    private sealed class NameChangedAction : AbstractFluxAction<NameChangedEvent>
+    private sealed class NameChangedActionCreator : IFluxActionCreator<NameChangedAction>
     {
-        public NameChangedAction(IFluxDispatcher dispatcher) : base(dispatcher) { }
-
-        protected override async Task<NameChangedEvent> CreateEvent()
+        public async Task<NameChangedAction> CreateAsync(CancellationToken ct = default)
         {
-            await Task.Delay(500); // simulate API call or something
+            await Task.Delay(500, ct); // simulate API call or something
             return new() { NewName = "Joe" };
         }
     }
 
-    private sealed class NameChangedReducer : AbstractFluxReducer<AnotherTestState, NameChangedEvent>
+    private sealed class NameChangedReducer : AbstractFluxReducer<AnotherTestState, NameChangedAction>
     {
-        public override AnotherTestState Reduce(NameChangedEvent @event, AnotherTestState currentState) =>
+        public override AnotherTestState Reduce(NameChangedAction @event, AnotherTestState currentState) =>
             currentState with { Name = @event.NewName };
     }
 
@@ -71,12 +69,13 @@ internal static class FluxStateTest
         using var sp = new ServiceCollection().AddFluxStateManagement(flux =>
         {
             flux.ForState(new AnotherTestState { Name = "Test" })
-                    .HandleEvent<NameChangedEvent, NameChangedAction>()
-                        .With<NameChangedReducer>()
+                    .ForAction<NameChangedAction>()
+                        .WithCreator<NameChangedActionCreator>()
+                        .UseReducer<NameChangedReducer>()
                 .ForState<TestState>()
-                    .HandleEvent<IncrementCounterEvent>()
-                        .With<IncrementCounterReducer>()
-                        .With<ResetCounterReducer>();
+                    .ForAction<IncrementCounterAction>()
+                        .UseReducer<IncrementCounterReducer>()
+                        .UseReducer<ResetCounterReducer>();
         }).BuildServiceProvider();
         var stateStore = sp.GetRequiredService<IFluxStateStore<TestState>>();
         stateStore.OnStateChanged += (sender, args, ct) =>
@@ -84,25 +83,25 @@ internal static class FluxStateTest
             stateHasChanged = true;
             return Task.CompletedTask;
         };
-        var action = sp.GetRequiredService<IFluxAction<IncrementCounterEvent>>();
+        var dispatcher = sp.GetRequiredService<IFluxDispatcher>();
         var oldState = stateStore.Current with { };
 
-        await action.DispatchAsync(CancellationToken.None);
+        await dispatcher.PublishAsync<IncrementCounterAction>(CancellationToken.None);
 
         oldState.Counter.Should().Be(0);
         stateStore.Current.Counter.Should().Be(1);
         stateStore.Current.CounterOverflowed.Should().BeFalse();
         stateHasChanged.Should().BeTrue();
 
-        await action.DispatchAsync(CancellationToken.None);
+        await dispatcher.PublishAsync<IncrementCounterAction>(CancellationToken.None);
         stateStore.Current.Counter.Should().Be(2);
         stateStore.Current.CounterOverflowed.Should().BeTrue();
         stateHasChanged.Should().BeTrue();
 
-        var nameAction = sp.GetRequiredService<IFluxAction<NameChangedEvent>>();
+        var nameAction = sp.GetRequiredService<IFluxActionCreator<NameChangedAction>>();
         var nameState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
 
-        await nameAction.DispatchAsync();
+        await dispatcher.PublishAsync(await nameAction.CreateAsync(), CancellationToken.None);
 
         nameState.Current.Name.Should().Be("Joe");
     }

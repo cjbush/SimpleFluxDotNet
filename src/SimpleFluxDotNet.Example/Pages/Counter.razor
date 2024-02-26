@@ -3,7 +3,7 @@
 @using SimpleFluxDotNet.Example.States
 
 @inject IFluxStateStore<ExampleState> _state
-@inject IFluxAction<IncrementCounterButtonClickedEvent> _action
+@inject IFluxActionCreator<IncrementCounterButtonClickedEvent> _action
 
 <PageTitle>Counter</PageTitle>
 

@@ -23,74 +23,86 @@ public sealed class FluxStateBuilder
         _services = services;
     }
 
-    public FluxEventBuilder<TState> ForState<TState>() where TState : AbstractFluxState, new() => ForState<TState>(new());
+    public FluxActionBuilder<TState> ForState<TState>() where TState : AbstractFluxState, new() => ForState<TState>(new());
 
-    public FluxEventBuilder<TState> ForState<TState>(TState initialState) where TState : AbstractFluxState
+    public FluxActionBuilder<TState> ForState<TState>(TState initialState) where TState : AbstractFluxState
     {
         _services.AddSingleton<InitialStateProvider<TState>>(() => initialState);
         _services.AddSingleton<IFluxStateStore<TState>, GenericFluxStateStore<TState>>();
-        return new FluxEventBuilder<TState>(_services, this);
+        return new FluxActionBuilder<TState>(_services, this);
     }
 
 }
 
-public sealed class FluxEventBuilder<TState> where TState : AbstractFluxState
+public sealed class FluxActionBuilder<TState> where TState : AbstractFluxState
 {
     private readonly IServiceCollection _services;
     private readonly FluxStateBuilder _parent;
 
-    public FluxEventBuilder(IServiceCollection services, FluxStateBuilder parent)
+    public FluxActionBuilder(IServiceCollection services, FluxStateBuilder parent)
     {
         _services = services;
         _parent = parent;
     }
 
-    public FluxReducerBuilder<TState, TEvent> HandleEvent<TEvent>() where TEvent : class, IFluxEvent, new()
+    public FluxActionCreatorBuilder<TState, TAction> ForAction<TAction>() where TAction : class, IFluxAction
     {
-        _services.AddSingleton<IFluxAction<TEvent>, GenericFluxAction<TEvent>>();
-        return new FluxReducerBuilder<TState, TEvent>(_services, this);
-    }
-
-    public FluxReducerBuilder<TState, TEvent> HandleEvent<TEvent, TAction>() where TEvent : class, IFluxEvent where TAction : class, IFluxAction<TEvent>
-    {
-        _services.AddSingleton<IFluxAction<TEvent>, TAction>();
-        return new FluxReducerBuilder<TState, TEvent>(_services, this);
+        return new FluxActionCreatorBuilder<TState, TAction>(_services, this);
     }
 
     internal FluxStateBuilder Parent => _parent;
 }
 
-public sealed class FluxReducerBuilder<TState, TEvent> where TState : AbstractFluxState where TEvent : class, IFluxEvent
+public sealed class FluxActionCreatorBuilder<TState, TAction> where TState : AbstractFluxState where TAction : class, IFluxAction
 {
     private readonly IServiceCollection _services;
-    private readonly FluxEventBuilder<TState> _parent;
+    private readonly FluxActionBuilder<TState> _parent;
 
-    public FluxReducerBuilder(IServiceCollection services, FluxEventBuilder<TState> parent)
+    public FluxActionCreatorBuilder(IServiceCollection services, FluxActionBuilder<TState> parent)
     {
         _services = services;
         _parent = parent;
     }
 
-    public FluxReducerBuilder<TState, TEvent> With<TReducer>() where TReducer : class, IFluxReducer<TState, TEvent>
+    public FluxReducerBuilder<TState, TAction> WithCreator<TActionCreator>() where TActionCreator : class, IFluxActionCreator<TAction>
+    {
+        _services.AddSingleton<IFluxActionCreator<TAction>, TActionCreator>();
+        return new FluxReducerBuilder<TState, TAction>(_services, _parent);
+    }
+
+    public FluxReducerBuilder<TState, TAction> UseReducer<TReducer>() where TReducer : class, IFluxReducer<TState, TAction>
+    {
+        return new FluxReducerBuilder<TState, TAction>(_services, _parent).UseReducer<TReducer>();
+    }
+
+}
+
+public sealed class FluxReducerBuilder<TState, TAction> where TState : AbstractFluxState where TAction : class, IFluxAction
+{
+    private readonly IServiceCollection _services;
+    private readonly FluxActionBuilder<TState> _parent;
+
+    public FluxReducerBuilder(IServiceCollection services, FluxActionBuilder<TState> parent)
+    {
+        _services = services;
+        _parent = parent;
+    }
+
+    public FluxReducerBuilder<TState, TAction> UseReducer<TReducer>() where TReducer : class, IFluxReducer<TState, TAction>
     {
         _services.AddSingleton<IFluxReducer<TState>, TReducer>();
         return this;
     }
 
-    public FluxReducerBuilder<TState, TNewEvent> HandleEvent<TNewEvent>() where TNewEvent : class, IFluxEvent, new()
+    public FluxActionCreatorBuilder<TState, TNewAction> ForAction<TNewAction>() where TNewAction : class, IFluxAction
     {
-        return _parent.HandleEvent<TNewEvent>();
+        return _parent.ForAction<TNewAction>();
     }
 
-    public FluxReducerBuilder<TState, TNewEvent> HandleEvent<TNewEvent, TAction>() where TAction : class, IFluxAction<TNewEvent> where TNewEvent : class, IFluxEvent, new()
-    {
-        return _parent.HandleEvent<TNewEvent, TAction>();
-    }
-
-    public FluxEventBuilder<TNewState> ForState<TNewState>() where TNewState : AbstractFluxState, new() =>
+    public FluxActionBuilder<TNewState> ForState<TNewState>() where TNewState : AbstractFluxState, new() =>
         ForState<TNewState>(new());
 
-    public FluxEventBuilder<TNewState> ForState<TNewState>(TNewState initialState) where TNewState : AbstractFluxState
+    public FluxActionBuilder<TNewState> ForState<TNewState>(TNewState initialState) where TNewState : AbstractFluxState
     {
         return _parent.Parent.ForState(initialState);
     }

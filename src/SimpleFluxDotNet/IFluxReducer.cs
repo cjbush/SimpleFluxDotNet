@@ -3,21 +3,21 @@
 
 public interface IFluxReducer<TState> where TState : AbstractFluxState
 {
-    Type EventType { get; }
-    TState Reduce(object @event, TState currentState);
+    Type ActionType { get; }
+    TState Reduce(object action, TState currentState);
 }
 
-public interface IFluxReducer<TState, TEvent> : IFluxReducer<TState> where TState : AbstractFluxState where TEvent : class, IFluxEvent
+public interface IFluxReducer<TState, TAction> : IFluxReducer<TState> where TState : AbstractFluxState where TAction : class, IFluxAction
 {
-    TState Reduce(TEvent @event, TState currentState);
+    TState Reduce(TAction action, TState currentState);
 }
 
-public abstract class AbstractFluxReducer<TState, TEvent> : IFluxReducer<TState, TEvent> where TState : AbstractFluxState where TEvent : class, IFluxEvent
+public abstract class AbstractFluxReducer<TState, TAction> : IFluxReducer<TState, TAction> where TState : AbstractFluxState where TAction : class, IFluxAction
 {
-    public abstract TState Reduce(TEvent @event, TState currentState);
+    public abstract TState Reduce(TAction action, TState currentState);
 
-    public Type EventType => typeof(TEvent);
+    public Type ActionType => typeof(TAction);
 
-    public TState Reduce(object @event, TState currentState) =>
-        Reduce((TEvent)@event, currentState);
+    public TState Reduce(object action, TState currentState) =>
+        Reduce((TAction)action, currentState);
 }

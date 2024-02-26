@@ -23,9 +23,9 @@ internal sealed class GenericFluxStateStore<TState> : IFluxStateStore<TState> wh
         Current = initialState();
         foreach (var reducer in reducers)
         {
-            dispatcher.Subscribe(reducer.EventType, async (@event, ct) =>
+            dispatcher.Subscribe(reducer.ActionType, async (action, ct) =>
             {
-                Current = reducer.Reduce(@event, Current);
+                Current = reducer.Reduce(action, Current);
                 await OnStateChanged(this, EventArgs.Empty, ct);
             });
         }
