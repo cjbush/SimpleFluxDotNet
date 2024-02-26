@@ -101,6 +101,7 @@ internal static class FluxStateTest
             return Task.CompletedTask;
         };
         var dispatcher = sp.GetRequiredService<IFluxDispatcher>();
+        var chainer = sp.GetRequiredService<IFluxActionChainer>();
         var oldState = stateStore.Current with { };
 
         await dispatcher.DispatchAsync<IncrementCounterAction>(CancellationToken.None);
@@ -112,7 +113,15 @@ internal static class FluxStateTest
         static IncrementCounterAction Increment() => new();
         static DecrementCounterAction Decrement() => new();
 
-        await dispatcher.DispatchAsync([Increment(), Decrement(), Decrement(), Decrement(), Increment(), Increment(), Increment(), Increment(), Increment()]);
+        await chainer.Dispatch(Increment())
+                     .Then(Decrement())
+                     .Then(Decrement())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .ExecuteAsync();
         stateStore.Current.Counter.Should().Be(0);
         stateHasChanged.Should().BeTrue();
 

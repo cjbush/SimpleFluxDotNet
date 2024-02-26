@@ -8,7 +8,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddFluxStateManagement(this IServiceCollection services, Action<FluxStateBuilder> builder)
     {
         services.AddSingleton<IFluxDispatcher, FluxDispatcher>();
-        services.AddSingleton<IInternalFluxDispatcher, FluxDispatcher>();
+        services.AddTransient<IFluxActionChainer, FluxActionChainer>();
         builder(new FluxStateBuilder(services));
         return services;
     }
