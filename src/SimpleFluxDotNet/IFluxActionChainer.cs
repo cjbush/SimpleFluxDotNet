@@ -11,7 +11,6 @@ public interface IFluxActionChainer
 internal sealed class FluxActionChainer : IFluxActionChainer
 {
     private readonly IFluxDispatcher _dispatcher;
-    private readonly List<Func<CancellationToken, Task<IFluxAction>>> _actionCreators = [];
 
     public FluxActionChainer(IFluxDispatcher dispatcher)
     {
@@ -20,8 +19,7 @@ internal sealed class FluxActionChainer : IFluxActionChainer
 
     public FluxActionChainBuilder Dispatch<TAction>(TAction action) where TAction : class, IFluxAction
     {
-        _actionCreators.Add((ct) => Task.FromResult((IFluxAction)action));
-        return new FluxActionChainBuilder(_dispatcher, _actionCreators);
+        return new FluxActionChainBuilder(_dispatcher, [(ct) => Task.FromResult((IFluxAction)action)]);
     }
 
     public FluxActionChainBuilder Dispatch<TAction>() where TAction : class, IFluxAction, new() =>
@@ -29,8 +27,7 @@ internal sealed class FluxActionChainer : IFluxActionChainer
 
     public FluxActionChainBuilder Dispatch<TAction>(IFluxActionCreator<TAction> creator) where TAction : class, IFluxAction
     {
-        _actionCreators.Add(async (ct) => await creator.CreateAsync(ct));
-        return new FluxActionChainBuilder(_dispatcher, _actionCreators);
+        return new FluxActionChainBuilder(_dispatcher, [async (ct) => await creator.CreateAsync(ct)]);
     }
 
 }
