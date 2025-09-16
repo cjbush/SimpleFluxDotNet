@@ -134,4 +134,53 @@ internal static class FluxStateTest
         nameState.Current.Name.Should().Be("Joe");
     }
 
+    [Test]
+    public static async Task Flux_ShouldTriggerEventFromActionAndHandleInReducer_WithAutoDiscovery()
+    {
+        var stateHasChanged = false;
+        using var sp = new ServiceCollection().AddFluxStateManagement(flux =>
+        {
+            flux.ForState(new AnotherTestState { Name = "Test" }).AutoDiscoverActions()
+                .ForState<TestState>().AutoDiscoverActions();
+        }).BuildServiceProvider();
+        var stateStore = sp.GetRequiredService<IFluxStateStore<TestState>>();
+        stateStore.OnStateChanged += (sender, args, ct) =>
+        {
+            stateHasChanged = true;
+            return Task.CompletedTask;
+        };
+        var dispatcher = sp.GetRequiredService<IFluxDispatcher>();
+        var chainer = sp.GetRequiredService<IFluxActionChainer>();
+        var oldState = stateStore.Current with { };
+
+        await dispatcher.DispatchAsync<IncrementCounterAction>(CancellationToken.None);
+
+        oldState.Counter.Should().Be(0);
+        stateStore.Current.Counter.Should().Be(1);
+        stateHasChanged.Should().BeTrue();
+
+        static IncrementCounterAction Increment() => new();
+        static DecrementCounterAction Decrement() => new();
+
+        await chainer.Dispatch(Increment())
+                     .Then(Decrement())
+                     .Then(Decrement())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .Then(Increment())
+                     .ExecuteAsync();
+        stateStore.Current.Counter.Should().Be(0);
+        stateHasChanged.Should().BeTrue();
+
+        var nameAction = sp.GetRequiredService<IFluxActionCreator<NameChangedAction>>();
+        var nameState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
+
+        var nameChainer = sp.GetRequiredService<IFluxActionChainer>();
+        await nameChainer.Dispatch(nameAction).ExecuteAsync();
+
+        nameState.Current.Name.Should().Be("Joe");
+    }
+
 }

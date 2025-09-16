@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SimpleFluxDotNet;
 
@@ -49,6 +50,62 @@ public sealed class FluxActionBuilder<TState> where TState : AbstractFluxState
     public FluxActionCreatorBuilder<TState, TAction> ForAction<TAction>() where TAction : class, IFluxAction
     {
         return new FluxActionCreatorBuilder<TState, TAction>(_services, this);
+    }
+
+
+    public FluxStateBuilder AutoDiscoverActions() =>
+        AutoDiscoverActions([typeof(TState).Assembly]);
+
+    public FluxStateBuilder AutoDiscoverActions(IEnumerable<Assembly> assemblies)
+    {
+        foreach (var action in assemblies.SelectMany(a => a.GetTypes().Where(IsActionType)))
+        {
+            var reducers = assemblies.SelectMany(a => a.GetTypes().Where(t => IsReducerType(t, action)));
+            var actionCreators = assemblies.SelectMany(a => a.GetTypes().Where(t => IsActionCreatorType(t, action)));
+            if (actionCreators.Any())
+            {
+                foreach (var actionCreator in actionCreators)
+                {
+                    _services.AddScoped(typeof(IFluxActionCreator<>).MakeGenericType(action), actionCreator);
+                }
+            }
+
+            foreach (var reducer in reducers)
+            {
+                _services.AddSingleton(typeof(IFluxReducer<TState>), reducer);
+            }
+        }
+        return _parent;
+
+        static bool IsActionCreatorType(Type t, Type actionType)
+        {
+            if (t.IsClass && !t.IsAbstract)
+            {
+                return Array.Exists(t.GetInterfaces(), (Type i) => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFluxActionCreator<>) && i.GenericTypeArguments.Contains(actionType));
+            }
+
+            return false;
+        }
+
+        static bool IsActionType(Type t)
+        {
+            if (t.IsClass && !t.IsAbstract)
+            {
+                return t.IsAssignableTo(typeof(IFluxAction));
+            }
+
+            return false;
+        }
+
+        static bool IsReducerType(Type t, Type actionType)
+        {
+            if (t.IsClass && !t.IsAbstract && t.IsAssignableTo(typeof(IFluxReducer<TState>)))
+            {
+                return Array.Exists(t.GetInterfaces(), (Type i) => i.GenericTypeArguments.Contains<Type>(typeof(TState)) && i.GenericTypeArguments.Contains(actionType));
+            }
+
+            return false;
+        }
     }
 
     internal FluxStateBuilder Parent => _parent;
