@@ -67,7 +67,7 @@ public sealed class FluxActionCreatorBuilder<TState, TAction> where TState : Abs
 
     public FluxReducerBuilder<TState, TAction> WithCreator<TActionCreator>() where TActionCreator : class, IFluxActionCreator<TAction>
     {
-        _services.AddSingleton<IFluxActionCreator<TAction>, TActionCreator>();
+        _services.AddScoped<IFluxActionCreator<TAction>, TActionCreator>();
         return new FluxReducerBuilder<TState, TAction>(_services, _parent);
     }
 
