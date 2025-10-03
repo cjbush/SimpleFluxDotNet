@@ -6,13 +6,14 @@
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
 		<PackageId>SimpleFlux.NET</PackageId>
-		<Version>2.6.1</Version>
+		<Version>3.0.0-preview006</Version>
 		<Authors>cjbush</Authors>
 		<PackageTags>flux;blazor</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<RepositoryUrl>https://github.com/cjbush/SimpleFluxDotNet</RepositoryUrl>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<Description>A simple flux architecture implementation with minimal dependencies and minimal boilerplate</Description>
+		<PackageOutputPath>C:\Temp\NuGet</PackageOutputPath>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -20,6 +21,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Components" Version="8.0.2" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
 	</ItemGroup>
 

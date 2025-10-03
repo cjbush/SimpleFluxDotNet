@@ -1,24 +1,12 @@
 ﻿@page "/counter"
-@using SimpleFluxDotNet.Example.Events
-@using SimpleFluxDotNet.Example.States
+@using SimpleFluxDotNet.Abstractions
 
-@inject IFluxStateStore<ExampleState> _state
-@inject IFluxDispatcher _dispatcher
+@inherits FluxComponent<ExampleState>
 
 <PageTitle>Counter</PageTitle>
 
 <h1>Counter</h1>
 
-<p role="status">Current count: @_state.Current.Counter</p>
+<p role="status">Current count: @State.Current.Counter</p>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
-
-@code {
-    protected override Task OnInitializedAsync()
-    {
-        _state.OnStateChanged += (sender, args, ct) => InvokeAsync(StateHasChanged);
-        return base.OnInitializedAsync();
-    }
-
-    private Task IncrementCount() => _dispatcher.DispatchAsync(new IncrementCounterButtonClickedAction());
-}
+<button class="btn btn-primary" @onclick="() => State.DispatchAsync<IncrementCounterButtonClickedAction>()">Click me</button>
