@@ -9,4 +9,11 @@
 
 <p role="status">Current count: @State.Current.Counter</p>
 
-<button class="btn btn-primary" @onclick="() => State.DispatchAsync<IncrementCounterButtonClickedAction>()">Click me</button>
+<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+
+@code {
+
+    private Task IncrementCount() =>
+        State.DispatchAsync(new IncrementCounterButtonClickedAction());
+
+}
