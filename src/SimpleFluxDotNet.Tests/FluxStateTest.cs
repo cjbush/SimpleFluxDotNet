@@ -1,5 +1,8 @@
 ﻿using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SimpleFluxDotNet.Abstractions;
+using SimpleFluxDotNet.Extensions;
 
 namespace SimpleFluxDotNet.Tests;
 
@@ -23,15 +26,15 @@ internal static class FluxStateTest
     private sealed record NameChangedAction(string NewName) : IFluxAction { }
 
 
-    private sealed class IncrementCounterReducer : AbstractFluxReducer<TestState, IncrementCounterAction>
+    private static class IncrementCounterReducer
     {
-        public override TestState Reduce(IncrementCounterAction action, TestState currentState) =>
+        public static TestState Reduce(TestState currentState) =>
             currentState with { Counter = currentState.Counter + 1 };
     }
 
-    private sealed class ResetIncrementCounterReducer : AbstractFluxReducer<TestState, IncrementCounterAction>
+    private static class ResetIncrementCounterReducer
     {
-        public override TestState Reduce(IncrementCounterAction action, TestState currentState)
+        public static TestState Reduce(TestState currentState)
         {
             if (currentState.Counter >= 5)
             {
@@ -41,15 +44,15 @@ internal static class FluxStateTest
         }
     }
 
-    private sealed class DecrementCounterReducer : AbstractFluxReducer<TestState, DecrementCounterAction>
+    private static class DecrementCounterReducer
     {
-        public override TestState Reduce(DecrementCounterAction action, TestState currentState) =>
+        public static TestState Reduce(TestState currentState) =>
             currentState with { Counter = currentState.Counter - 1 };
     }
 
-    private sealed class ResetDecrementCounterReducer : AbstractFluxReducer<TestState, DecrementCounterAction>
+    private sealed class ResetDecrementCounterReducer : IFluxReducer<TestState, DecrementCounterAction>
     {
-        public override TestState Reduce(DecrementCounterAction action, TestState currentState)
+        public TestState Reduce(DecrementCounterAction action, TestState currentState)
         {
             if (currentState.Counter < 0)
             {
@@ -60,18 +63,18 @@ internal static class FluxStateTest
     }
 
 
-    private sealed class NameChangedActionCreator : IFluxActionCreator<NameChangedAction>
+    private sealed class NameChangedMiddleware : IFluxMiddleware<AnotherTestState, NameChangedAction>
     {
-        public async Task<NameChangedAction> CreateAsync(CancellationToken ct = default)
+        public async Task DispatchAsync(NameChangedAction action, FluxMiddlewareContext<AnotherTestState> context, CancellationToken ct = default)
         {
             await Task.Delay(500, ct); // simulate API call or something
-            return new("Joe");
+            await context.Next(new NameChangedAction("Joe"));
         }
     }
 
-    private sealed class NameChangedReducer : AbstractFluxReducer<AnotherTestState, NameChangedAction>
+    private static class NameChangedReducer
     {
-        public override AnotherTestState Reduce(NameChangedAction @event, AnotherTestState currentState) =>
+        public static AnotherTestState Reduce(NameChangedAction @event, AnotherTestState currentState) =>
             currentState with { Name = @event.NewName };
     }
 
@@ -80,107 +83,64 @@ internal static class FluxStateTest
     public static async Task Flux_ShouldTriggerEventFromActionAndHandleInReducer()
     {
         var stateHasChanged = false;
-        using var sp = new ServiceCollection().AddFluxStateManagement(flux =>
+        using var sp = new ServiceCollection().AddLogging(logging => logging.AddConsole()).AddFluxStateManagement(flux =>
         {
-            flux.ForState(new AnotherTestState { Name = "Test" })
-                    .ForAction<NameChangedAction>()
-                        .WithCreator<NameChangedActionCreator>()
-                        .UseReducer<NameChangedReducer>()
-                .ForState<TestState>()
-                    .ForAction<IncrementCounterAction>()
-                        .UseReducer<IncrementCounterReducer>()
-                        .UseReducer<ResetIncrementCounterReducer>()
-                    .ForAction<DecrementCounterAction>()
-                        .UseReducer<DecrementCounterReducer>()
-                        .UseReducer<ResetDecrementCounterReducer>();
+            flux.ConfigureStateContainer(new AnotherTestState { Name = "Test" }, state =>
+            {
+                state.HandleAction<NameChangedAction>(action =>
+                {
+                    action.UseMiddleware<NameChangedMiddleware>()
+                          .UseReducer(NameChangedReducer.Reduce);
+                });
+            }).ConfigureStateContainer<TestState>(state =>
+            {
+                state.HandleAction<IncrementCounterAction>(action =>
+                {
+                    action.UseReducer(IncrementCounterReducer.Reduce)
+                          .UseReducer(ResetIncrementCounterReducer.Reduce);
+                });
+                state.HandleAction<DecrementCounterAction>(action =>
+                {
+                    action.UseReducer(DecrementCounterReducer.Reduce)
+                          .UseReducer<ResetDecrementCounterReducer>();
+                });
+            });
         }).BuildServiceProvider();
-        var stateStore = sp.GetRequiredService<IFluxStateStore<TestState>>();
-        stateStore.OnStateChanged += (sender, args, ct) =>
+        var testState = sp.GetRequiredService<IFluxStateStore<TestState>>();
+        testState.OnStateChanged += (sender, args, ct) =>
         {
             stateHasChanged = true;
             return Task.CompletedTask;
         };
-        var dispatcher = sp.GetRequiredService<IFluxDispatcher>();
-        var chainer = sp.GetRequiredService<IFluxActionChainer>();
-        var oldState = stateStore.Current with { };
+        var oldState = testState.Current with { };
 
-        await dispatcher.DispatchAsync<IncrementCounterAction>(CancellationToken.None);
+        await testState.DispatchAsync<IncrementCounterAction>(CancellationToken.None);
 
         oldState.Counter.Should().Be(0);
-        stateStore.Current.Counter.Should().Be(1);
+        testState.Current.Counter.Should().Be(1);
         stateHasChanged.Should().BeTrue();
 
         static IncrementCounterAction Increment() => new();
         static DecrementCounterAction Decrement() => new();
 
-        await chainer.Dispatch(Increment())
-                     .Then(Decrement())
-                     .Then(Decrement())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .ExecuteAsync();
-        stateStore.Current.Counter.Should().Be(0);
+        await testState.DispatchAsync(Increment());
+        await testState.DispatchAsync(Decrement());
+        await testState.DispatchAsync(Decrement());
+        await testState.DispatchAsync(Increment());
+        await testState.DispatchAsync(Increment());
+        await testState.DispatchAsync(Increment());
+        await testState.DispatchAsync(Increment());
+        await testState.DispatchAsync(Increment());
+
+        testState.Current.Counter.Should().Be(0);
         stateHasChanged.Should().BeTrue();
 
-        var nameAction = sp.GetRequiredService<IFluxActionCreator<NameChangedAction>>();
-        var nameState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
 
-        var nameChainer = sp.GetRequiredService<IFluxActionChainer>();
-        await nameChainer.Dispatch(nameAction).ExecuteAsync();
+        var anotherState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
 
-        nameState.Current.Name.Should().Be("Joe");
-    }
+        await anotherState.DispatchAsync(new NameChangedAction("Chris"));
 
-    [Test]
-    public static async Task Flux_ShouldTriggerEventFromActionAndHandleInReducer_WithAutoDiscovery()
-    {
-        var stateHasChanged = false;
-        using var sp = new ServiceCollection().AddFluxStateManagement(flux =>
-        {
-            flux.ForState(new AnotherTestState { Name = "Test" }).AutoDiscoverActions()
-                .ForState<TestState>().AutoDiscoverActions();
-        }).BuildServiceProvider();
-        var stateStore = sp.GetRequiredService<IFluxStateStore<TestState>>();
-        stateStore.OnStateChanged += (sender, args, ct) =>
-        {
-            stateHasChanged = true;
-            return Task.CompletedTask;
-        };
-        var dispatcher = sp.GetRequiredService<IFluxDispatcher>();
-        var chainer = sp.GetRequiredService<IFluxActionChainer>();
-        var oldState = stateStore.Current with { };
-
-        await dispatcher.DispatchAsync<IncrementCounterAction>(CancellationToken.None);
-
-        oldState.Counter.Should().Be(0);
-        stateStore.Current.Counter.Should().Be(1);
-        stateHasChanged.Should().BeTrue();
-
-        static IncrementCounterAction Increment() => new();
-        static DecrementCounterAction Decrement() => new();
-
-        await chainer.Dispatch(Increment())
-                     .Then(Decrement())
-                     .Then(Decrement())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .Then(Increment())
-                     .ExecuteAsync();
-        stateStore.Current.Counter.Should().Be(0);
-        stateHasChanged.Should().BeTrue();
-
-        var nameAction = sp.GetRequiredService<IFluxActionCreator<NameChangedAction>>();
-        var nameState = sp.GetRequiredService<IFluxStateStore<AnotherTestState>>();
-
-        var nameChainer = sp.GetRequiredService<IFluxActionChainer>();
-        await nameChainer.Dispatch(nameAction).ExecuteAsync();
-
-        nameState.Current.Name.Should().Be("Joe");
+        anotherState.Current.Name.Should().Be("Joe");
     }
 
 }
