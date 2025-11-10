@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using SimpleFluxDotNet.Example;
 using SimpleFluxDotNet.Example.Actions;
 using SimpleFluxDotNet.Example.Reducers;
 using SimpleFluxDotNet.Example.States;
 using SimpleFluxDotNet.Extensions;
+
+return;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
